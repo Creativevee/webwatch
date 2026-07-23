@@ -1,0 +1,19 @@
+# Design doc
+Design.md
+
+# Python (backend)
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+backend/*.db
+backend/.env
+
+# Node (Frontend)
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.env
+
+# OS
+.DS_Store
+Thumbs.db
