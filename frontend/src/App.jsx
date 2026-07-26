@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { Routes, Route } from 'react-router-dom'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import client from './api/client'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
 function App() {
@@ -14,7 +18,7 @@ function App() {
     setAlerts(res.data)
   }
 
-  return (
+  const homePage = (
     <>
       <section id="center">
         <div className="hero">
@@ -127,6 +131,23 @@ function App() {
       <div className="ticks"></div>
       <section id="spacer"></section>
     </>
+  )
+
+  return (
+    <Routes>
+      <Route path="/"
+        element={<ProtectedRoute>{homePage}</ProtectedRoute>}
+      />
+      <Route path="/login" element={<Login />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
   )
 }
 
