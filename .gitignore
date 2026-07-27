@@ -21,6 +21,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+monitored/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
