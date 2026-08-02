@@ -4,8 +4,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from engines.file_monitor import run_scheduled_scan, start_watching
-from routers import auth, alerts, folders
+from engines.file_monitor import runScheduledScan, startWatching
+from engines.log_analyzer import runScheduledLogScan, runScheduledSshScan
+from routers import auth, alerts, folders, logs, rules
 
 scheduler = BackgroundScheduler()
 
@@ -13,14 +14,26 @@ scheduler = BackgroundScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler.add_job(
-        run_scheduled_scan,
+        runScheduledScan,
         "interval",
-        seconds=30,
-        kwargs={"folder_id": 1, "folder_path": "../monitored"},
+        seconds=20,
+        kwargs={"folderId": 1, "folderPath": "../monitored"},
+    )
+    scheduler.add_job(
+        runScheduledLogScan,
+        "interval",
+        seconds=20,
+        kwargs={"logSourceId": 1},
+    )
+    scheduler.add_job(
+        runScheduledSshScan,
+        "interval",
+        seconds=20,
+        kwargs={"logSourceId": 2},
     )
     scheduler.start()
 
-    observer = start_watching("../monitored")
+    observer = startWatching("../monitored")
 
     yield
 
@@ -42,6 +55,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(alerts.router)
 app.include_router(folders.router)
+app.include_router(logs.router)
+app.include_router(rules.router)
 
 
 @app.get("/")

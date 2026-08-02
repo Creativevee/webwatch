@@ -94,6 +94,7 @@ class RuleBase(BaseModel):
     name: str
     pattern: str
     severity: Severity = Severity.medium
+    mitre_technique: Optional[str] = None
     description: Optional[str] = None
 
 
@@ -105,6 +106,7 @@ class RuleUpdate(BaseModel):
     name: Optional[str] = None
     pattern: Optional[str] = None
     severity: Optional[Severity] = None
+    mitre_technique: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
 

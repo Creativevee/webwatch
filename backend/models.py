@@ -53,6 +53,7 @@ class LogSource(Base):
     name = Column(String(100), nullable=False)
     path = Column(String(500), nullable=False)
     source_type = Column(String(50), default="custom")
+    last_read_offset = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -67,6 +68,7 @@ class Rule(Base):
     name = Column(String(100), unique=True, nullable=False)
     pattern = Column(String(500), nullable=False)
     severity = Column(String(20), default="medium")
+    mitre_technique = Column(String(20), nullable=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
@@ -83,6 +85,9 @@ class Alert(Base):
     ip_address = Column(String(45), nullable=True)
     message = Column(Text, nullable=False)
     severity = Column(String(20), default="medium")
+    mitre_technique = Column(String(20), nullable=True)
+    abuseipdb_score = Column(Integer, nullable=True)
+    ai_explanation = Column(Text, nullable=True)
     is_resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -96,6 +101,7 @@ class IPReputationCache(Base):
     id = Column(Integer, primary_key=True, index=True)
     ip_address = Column(String(45), unique=True, index=True, nullable=False)
     abuse_confidence_score = Column(Integer, default=0)
+    risk_score = Column(Integer, default=0)
     country_code = Column(String(5), nullable=True)
     is_malicious = Column(Boolean, default=False)
     last_checked = Column(DateTime, server_default=func.now())

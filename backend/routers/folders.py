@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from database import get_db
-from engines.file_monitor import scan_folder, update_baseline
+from engines.file_monitor import scanFolder, updateBaseline
 import models
 import schemas
 from routers.auth import get_current_user
@@ -77,7 +77,7 @@ def rebuild_folder_baseline(
     if folder is None:
         raise HTTPException(status_code=404, detail="Folder not found")
 
-    current_hashes = scan_folder(folder.path)
-    update_baseline(folder_id=folder.id, current_hashes=current_hashes, db=db)
+    current_hashes = scanFolder(folder.path)
+    updateBaseline(folderId=folder.id, currentHashes=current_hashes, db=db)
 
     return {"message": "Baseline rebuilt", "files_scanned": len(current_hashes)}

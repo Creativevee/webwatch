@@ -1,94 +1,101 @@
 import hashlib
 import os
 import time
-from datetime import datetime
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-import models
 from database import SessionLocal
+from engines.alert_manager import receiveFinding
+import models
+
+SEVERITY_BY_EVENT_TYPE = {
+    "ADDED": "medium",
+    "MODIFIED": "high",
+    "DELETED": "high",
+    "RENAMED": "medium",
+}
 
 
-def hash_file(file_path):
-    with open(file_path, "rb") as f:
-        file_bytes = f.read()
+def hashFile(filePath):
+    with open(filePath, "rb") as f:
+        fileBytes = f.read()
 
-    hash_object = hashlib.sha256(file_bytes)
-    return hash_object.hexdigest()
+    hashObject = hashlib.sha256(fileBytes)
+    return hashObject.hexdigest()
 
 
-def scan_folder(folder_path):
-    file_hashes = {}
+def scanFolder(folderPath):
+    fileHashes = {}
 
-    for root, dirs, files in os.walk(folder_path):
+    for root, dirs, files in os.walk(folderPath):
         for filename in files:
-            file_path = os.path.join(root, filename)
-            file_hashes[file_path] = hash_file(file_path)
+            filePath = os.path.join(root, filename)
+            fileHashes[filePath] = hashFile(filePath)
 
-    return file_hashes
+    return fileHashes
 
 
-def save_baseline(folder_id, file_hashes, db):
-    for file_path, file_hash in file_hashes.items():
+def saveBaseline(folderId, fileHashes, db):
+    for filePath, fileHash in fileHashes.items():
         record = models.FileHash(
-            folder_id=folder_id,
-            file_path=file_path,
-            file_hash=file_hash,
+            folder_id=folderId,
+            file_path=filePath,
+            file_hash=fileHash,
         )
         db.add(record)
 
     db.commit()
 
 
-def get_stored_hashes(folder_id, db):
-    records = db.query(models.FileHash).filter_by(folder_id=folder_id).all()
+def getStoredHashes(folderId, db):
+    records = db.query(models.FileHash).filter_by(folder_id=folderId).all()
 
-    stored_hashes = {}
+    storedHashes = {}
     for record in records:
-        stored_hashes[record.file_path] = record.file_hash
+        storedHashes[record.file_path] = record.file_hash
 
-    return stored_hashes
+    return storedHashes
 
 
-def detect_changes(stored_hashes, current_hashes):
-    stored_paths = set(stored_hashes.keys())
-    current_paths = set(current_hashes.keys())
+def detectChanges(storedHashes, currentHashes):
+    storedPaths = set(storedHashes.keys())
+    currentPaths = set(currentHashes.keys())
 
-    added_paths = current_paths - stored_paths
-    deleted_paths = stored_paths - current_paths
-    common_paths = stored_paths & current_paths
+    addedPaths = currentPaths - storedPaths
+    deletedPaths = storedPaths - currentPaths
+    commonPaths = storedPaths & currentPaths
 
     modified = []
-    for path in common_paths:
-        if stored_hashes[path] != current_hashes[path]:
+    for path in commonPaths:
+        if storedHashes[path] != currentHashes[path]:
             modified.append(path)
 
     # look for renames: a "deleted" file whose hash matches an "added" file
-    deleted_hash_lookup = {}
-    for path in deleted_paths:
-        deleted_hash_lookup[stored_hashes[path]] = path
+    deletedHashLookup = {}
+    for path in deletedPaths:
+        deletedHashLookup[storedHashes[path]] = path
 
     renamed = []
-    matched_old_paths = set()
-    matched_new_paths = set()
+    matchedOldPaths = set()
+    matchedNewPaths = set()
 
-    for new_path in added_paths:
-        file_hash = current_hashes[new_path]
-        if file_hash in deleted_hash_lookup:
-            old_path = deleted_hash_lookup[file_hash]
-            renamed.append({"old_path": old_path, "new_path": new_path})
-            matched_old_paths.add(old_path)
-            matched_new_paths.add(new_path)
+    for newPath in addedPaths:
+        fileHash = currentHashes[newPath]
+        if fileHash in deletedHashLookup:
+            oldPath = deletedHashLookup[fileHash]
+            renamed.append({"old_path": oldPath, "new_path": newPath})
+            matchedOldPaths.add(oldPath)
+            matchedNewPaths.add(newPath)
 
     added = []
-    for path in added_paths:
-        if path not in matched_new_paths:
+    for path in addedPaths:
+        if path not in matchedNewPaths:
             added.append(path)
 
     deleted = []
-    for path in deleted_paths:
-        if path not in matched_old_paths:
+    for path in deletedPaths:
+        if path not in matchedOldPaths:
             deleted.append(path)
 
     return {
@@ -99,102 +106,110 @@ def detect_changes(stored_hashes, current_hashes):
     }
 
 
-def log_event(event_type, message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{event_type}] {message}")
+def reportFinding(eventType, message, db):
+    severity = SEVERITY_BY_EVENT_TYPE.get(eventType, "medium")
+    receiveFinding(db, message=f"[{eventType}] {message}", severity=severity)
 
 
-def update_baseline(folder_id, current_hashes, db):
-    existing_records = db.query(models.FileHash).filter_by(folder_id=folder_id).all()
-    existing_by_path = {record.file_path: record for record in existing_records}
+def updateBaseline(folderId, currentHashes, db):
+    existingRecords = db.query(models.FileHash).filter_by(folder_id=folderId).all()
+    existingByPath = {record.file_path: record for record in existingRecords}
 
-    for file_path, file_hash in current_hashes.items():
-        if file_path in existing_by_path:
-            existing_by_path[file_path].file_hash = file_hash
+    for filePath, fileHash in currentHashes.items():
+        if filePath in existingByPath:
+            existingByPath[filePath].file_hash = fileHash
         else:
             db.add(
                 models.FileHash(
-                    folder_id=folder_id,
-                    file_path=file_path,
-                    file_hash=file_hash,
+                    folder_id=folderId,
+                    file_path=filePath,
+                    file_hash=fileHash,
                 )
             )
 
-    for file_path, record in existing_by_path.items():
-        if file_path not in current_hashes:
+    for filePath, record in existingByPath.items():
+        if filePath not in currentHashes:
             db.delete(record)
 
     db.commit()
 
 
-def run_scheduled_scan(folder_id, folder_path):
+def runScheduledScan(folderId, folderPath):
     db = SessionLocal()
 
-    current_hashes = scan_folder(folder_path)
-    stored_hashes = get_stored_hashes(folder_id, db)
-    changes = detect_changes(stored_hashes, current_hashes)
+    currentHashes = scanFolder(folderPath)
+    storedHashes = getStoredHashes(folderId, db)
+    changes = detectChanges(storedHashes, currentHashes)
 
     for path in changes["added"]:
-        log_event("ADDED", path)
+        reportFinding("ADDED", path, db)
 
     for path in changes["deleted"]:
-        log_event("DELETED", path)
+        reportFinding("DELETED", path, db)
 
     for path in changes["modified"]:
-        log_event("MODIFIED", path)
+        reportFinding("MODIFIED", path, db)
 
     for r in changes["renamed"]:
-        log_event("RENAMED", f"{r['new_path']}(new) > {r['old_path']}(old)")
+        reportFinding("RENAMED", f"{r['new_path']}(new) > {r['old_path']}(old)", db)
 
-    update_baseline(folder_id, current_hashes, db)
+    updateBaseline(folderId, currentHashes, db)
 
     db.close()
 
 
 class ChangeHandler(FileSystemEventHandler):
-    def __init__(self, cooldown_seconds=1):
-        self.cooldown_seconds = cooldown_seconds
-        self.last_event_time = {}
+    def __init__(self, cooldownSeconds=1):
+        self.cooldownSeconds = cooldownSeconds
+        self.lastEventTime = {}
 
-    def _is_duplicate(self, path, event_type):
-        key = (path, event_type)
+    def _isDuplicate(self, path, eventType):
+        key = (path, eventType)
         now = time.time()
-        last_time = self.last_event_time.get(key)
+        lastTime = self.lastEventTime.get(key)
 
-        self.last_event_time[key] = now
+        self.lastEventTime[key] = now
 
-        if last_time is not None and (now - last_time) < self.cooldown_seconds:
+        if lastTime is not None and (now - lastTime) < self.cooldownSeconds:
             return True
 
         return False
 
     def on_created(self, event):
-        if not event.is_directory and not self._is_duplicate(event.src_path, "ADDED"):
-            log_event("ADDED", event.src_path)
+        if not event.is_directory and not self._isDuplicate(event.src_path, "ADDED"):
+            db = SessionLocal()
+            reportFinding("ADDED", event.src_path, db)
+            db.close()
 
     def on_modified(self, event):
-        if not event.is_directory and not self._is_duplicate(event.src_path, "MODIFIED"):
-            log_event("MODIFIED", event.src_path)
+        if not event.is_directory and not self._isDuplicate(event.src_path, "MODIFIED"):
+            db = SessionLocal()
+            reportFinding("MODIFIED", event.src_path, db)
+            db.close()
 
     def on_deleted(self, event):
-        if not event.is_directory and not self._is_duplicate(event.src_path, "DELETED"):
-            log_event("DELETED", event.src_path)
+        if not event.is_directory and not self._isDuplicate(event.src_path, "DELETED"):
+            db = SessionLocal()
+            reportFinding("DELETED", event.src_path, db)
+            db.close()
 
     def on_moved(self, event):
-        if not event.is_directory and not self._is_duplicate(event.dest_path, "RENAMED"):
-            log_event("RENAMED", f"{event.dest_path}(new) > {event.src_path}(old)")
+        if not event.is_directory and not self._isDuplicate(event.dest_path, "RENAMED"):
+            db = SessionLocal()
+            reportFinding("RENAMED", f"{event.dest_path}(new) > {event.src_path}(old)", db)
+            db.close()
 
 
-def start_watching(folder_path):
-    event_handler = ChangeHandler()
+def startWatching(folderPath):
+    eventHandler = ChangeHandler()
     observer = Observer()
-    observer.schedule(event_handler, folder_path, recursive=True)
+    observer.schedule(eventHandler, folderPath, recursive=True)
     observer.start()
     return observer
 
 
-def watch_folder(folder_path):
-    observer = start_watching(folder_path)
+def watchFolder(folderPath):
+    observer = startWatching(folderPath)
 
     print("Watching for real-time file changes... (Ctrl+C to stop)")
 
@@ -208,4 +223,4 @@ def watch_folder(folder_path):
 
 
 if __name__ == "__main__":
-    watch_folder("../monitored")
+    watchFolder("../monitored")
