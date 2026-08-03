@@ -94,6 +94,10 @@ class Alert(Base):
     rule = relationship("Rule", back_populates="alerts")
     log_source = relationship("LogSource", back_populates="alerts")
 
+    @property
+    def rule_name(self):
+        return self.rule.name if self.rule else None
+
 
 class IPReputationCache(Base):
     __tablename__ = "ip_reputation_cache"

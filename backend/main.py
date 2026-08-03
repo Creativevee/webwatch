@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from engines.file_monitor import runScheduledScan, startWatching
 from engines.log_analyzer import runScheduledLogScan, runScheduledSshScan
-from routers import auth, alerts, folders, logs, rules
+from routers import auth, alerts, folders, logs, rules, stats
 
 scheduler = BackgroundScheduler()
 
@@ -57,6 +57,7 @@ app.include_router(alerts.router)
 app.include_router(folders.router)
 app.include_router(logs.router)
 app.include_router(rules.router)
+app.include_router(stats.router)
 
 
 @app.get("/")

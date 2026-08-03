@@ -6,6 +6,8 @@ import heroImg from './assets/hero.png'
 import client from './api/client'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Alerts from './pages/Alerts'
+import Files from './pages/Files'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
@@ -144,6 +146,22 @@ function App() {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/alerts"
+        element={
+          <ProtectedRoute>
+            <Alerts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/files"
+        element={
+          <ProtectedRoute>
+            <Files />
           </ProtectedRoute>
         }
       />

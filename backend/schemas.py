@@ -138,7 +138,11 @@ class AlertUpdate(BaseModel):
 class AlertRead(AlertBase):
     id: int
     rule_id: Optional[int] = None
+    rule_name: Optional[str] = None
     log_source_id: Optional[int] = None
+    mitre_technique: Optional[str] = None
+    abuseipdb_score: Optional[int] = None
+    ai_explanation: Optional[str] = None
     is_resolved: bool
     created_at: datetime
 
