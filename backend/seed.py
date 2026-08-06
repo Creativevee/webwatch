@@ -50,7 +50,7 @@ DEFAULT_RULES = [
     },
     {
         "name": "Admin Panel Probing",
-        "pattern": r"(/admin|/administrator)",
+        "pattern": r"\s/(admin|administrator)(?:[/?\s]|$)",
         "severity": "medium",
         "mitre_technique": "T1595",
         "description": "Detects probing for common admin panel paths.",
