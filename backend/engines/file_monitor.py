@@ -6,10 +6,10 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from database import SessionLocal
-from engines.alert_manager import receiveFinding
+from engines.alert_manager import alertFinding
 import models
 
-SEVERITY_BY_EVENT_TYPE = {
+SEVERITY_LEVEL = {
     "ADDED": "medium",
     "MODIFIED": "high",
     "DELETED": "high",
@@ -36,18 +36,6 @@ def scanFolder(folderPath):
     return fileHashes
 
 
-def saveBaseline(folderId, fileHashes, db):
-    for filePath, fileHash in fileHashes.items():
-        record = models.FileHash(
-            folder_id=folderId,
-            file_path=filePath,
-            file_hash=fileHash,
-        )
-        db.add(record)
-
-    db.commit()
-
-
 def getStoredHashes(folderId, db):
     records = db.query(models.FileHash).filter_by(folder_id=folderId).all()
 
@@ -71,7 +59,6 @@ def detectChanges(storedHashes, currentHashes):
         if storedHashes[path] != currentHashes[path]:
             modified.append(path)
 
-    # look for renames: a "deleted" file whose hash matches an "added" file
     deletedHashLookup = {}
     for path in deletedPaths:
         deletedHashLookup[storedHashes[path]] = path
@@ -107,8 +94,8 @@ def detectChanges(storedHashes, currentHashes):
 
 
 def reportFinding(eventType, message, db):
-    severity = SEVERITY_BY_EVENT_TYPE.get(eventType, "medium")
-    receiveFinding(db, message=f"[{eventType}] {message}", severity=severity)
+    severity = SEVERITY_LEVEL.get(eventType, "medium")
+    alertFinding(db, message=f"[{eventType}] {message}", severity=severity)
 
 
 def updateBaseline(folderId, currentHashes, db):
@@ -134,7 +121,45 @@ def updateBaseline(folderId, currentHashes, db):
     db.commit()
 
 
-def runScheduledScan(folderId, folderPath):
+def findFolderId(path, db):
+    activeFolders = db.query(models.WebFolder).filter_by(is_active=True).all()
+    for folder in activeFolders:
+        if path.startswith(folder.path):
+            return folder.id
+    return None
+
+
+def updateFileHash(folderId, filePath, db):
+    newHash = hashFile(filePath)
+    record = (
+        db.query(models.FileHash)
+        .filter_by(folder_id=folderId, file_path=filePath)
+        .first()
+    )
+
+    if record:
+        record.file_hash = newHash
+    else:
+        db.add(
+            models.FileHash(folder_id=folderId, file_path=filePath, file_hash=newHash)
+        )
+
+    db.commit()
+
+
+def removeFileHash(folderId, filePath, db):
+    record = (
+        db.query(models.FileHash)
+        .filter_by(folder_id=folderId, file_path=filePath)
+        .first()
+    )
+
+    if record:
+        db.delete(record)
+        db.commit()
+
+
+def runBaseline(folderId, folderPath):
     db = SessionLocal()
 
     currentHashes = scanFolder(folderPath)
@@ -179,24 +204,39 @@ class ChangeHandler(FileSystemEventHandler):
         if not event.is_directory and not self._isDuplicate(event.src_path, "ADDED"):
             db = SessionLocal()
             reportFinding("ADDED", event.src_path, db)
+            folderId = findFolderId(event.src_path, db)
+            if folderId:
+                updateFileHash(folderId, event.src_path, db)
             db.close()
 
     def on_modified(self, event):
         if not event.is_directory and not self._isDuplicate(event.src_path, "MODIFIED"):
             db = SessionLocal()
             reportFinding("MODIFIED", event.src_path, db)
+            folderId = findFolderId(event.src_path, db)
+            if folderId:
+                updateFileHash(folderId, event.src_path, db)
             db.close()
 
     def on_deleted(self, event):
         if not event.is_directory and not self._isDuplicate(event.src_path, "DELETED"):
             db = SessionLocal()
             reportFinding("DELETED", event.src_path, db)
+            folderId = findFolderId(event.src_path, db)
+            if folderId:
+                removeFileHash(folderId, event.src_path, db)
             db.close()
 
     def on_moved(self, event):
         if not event.is_directory and not self._isDuplicate(event.dest_path, "RENAMED"):
             db = SessionLocal()
-            reportFinding("RENAMED", f"{event.dest_path}(new) > {event.src_path}(old)", db)
+            reportFinding(
+                "RENAMED", f"{event.dest_path}(new) > {event.src_path}(old)", db
+            )
+            folderId = findFolderId(event.dest_path, db)
+            if folderId:
+                removeFileHash(folderId, event.src_path, db)
+                updateFileHash(folderId, event.dest_path, db)
             db.close()
 
 
@@ -206,6 +246,36 @@ def startWatching(folderPath):
     observer.schedule(eventHandler, folderPath, recursive=True)
     observer.start()
     return observer
+
+
+def syncing(observer, handler, watchedFolders, db):
+    activeFolders = db.query(models.WebFolder).filter_by(is_active=True).all()
+    activeFolderIds = {folder.id: folder for folder in activeFolders}
+
+    for folderId in list(watchedFolders.keys()):
+        if folderId not in activeFolderIds:
+            observer.unschedule(watchedFolders[folderId])
+            del watchedFolders[folderId]
+
+    for folderId, folder in activeFolderIds.items():
+        if folderId not in watchedFolders:
+            watchedFolders[folderId] = observer.schedule(
+                handler, folder.path, recursive=True
+            )
+
+
+def scanNewFolders(scannedFolders, db):
+    activeFolders = db.query(models.WebFolder).filter_by(is_active=True).all()
+    activeIds = {folder.id: folder for folder in activeFolders}
+
+    for folderId in list(scannedFolders):
+        if folderId not in activeIds:
+            scannedFolders.discard(folderId)
+
+    for folderId, folder in activeIds.items():
+        if folderId not in scannedFolders:
+            runBaseline(folderId, folder.path)
+            scannedFolders.add(folderId)
 
 
 def watchFolder(folderPath):

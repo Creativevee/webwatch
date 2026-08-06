@@ -24,6 +24,27 @@ function getAbuseScoreColor(score) {
   return 'var(--status-good)'
 }
 
+function timeAgo(dateString) {
+  const seconds = Math.round((Date.now() - new Date(dateString).getTime()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+
+  if (seconds < 60) return rtf.format(-seconds, 'second')
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return rtf.format(-minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return rtf.format(-hours, 'hour')
+  const days = Math.round(hours / 24)
+  return rtf.format(-days, 'day')
+}
+
+function formatAlertTime(dateString) {
+  const timePart = new Date(dateString)
+    .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+    .replace(/\s/g, '')
+    .toLowerCase()
+  return `${timePart} ${timeAgo(dateString)}`
+}
+
 function AlertCard({ alert }) {
   const style = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.medium
   const isLogAlert = Boolean(alert.log_source_id)
@@ -74,8 +95,12 @@ function AlertCard({ alert }) {
           </>
         )}
 
+        <span className="ml-auto text-sm text-gray-400 dark:text-gray-500">
+          {formatAlertTime(alert.created_at)}
+        </span>
+
         {alert.is_resolved && (
-          <span className="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
             Resolved
           </span>
         )}

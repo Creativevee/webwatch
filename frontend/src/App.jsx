@@ -8,6 +8,8 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alerts from './pages/Alerts'
 import Files from './pages/Files'
+import Logs from './pages/Logs'
+import Rules from './pages/Rules'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
@@ -162,6 +164,22 @@ function App() {
         element={
           <ProtectedRoute>
             <Files />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/logs"
+        element={
+          <ProtectedRoute>
+            <Logs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/rules"
+        element={
+          <ProtectedRoute>
+            <Rules />
           </ProtectedRoute>
         }
       />

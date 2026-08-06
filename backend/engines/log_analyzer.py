@@ -5,12 +5,9 @@ from datetime import datetime, timedelta
 from urllib.parse import unquote
 
 from database import SessionLocal
-from engines.alert_manager import receiveFinding
+from engines.alert_manager import alertFinding
 import models
 
-# module-level trackers for frequency-based detections; these live only in
-# memory for as long as the server process runs (not persisted to the DB),
-# since they only matter for spotting an ongoing burst, not for surviving a restart
 _repeated404History = {}
 _repeated404LastAlert = {}
 _sshFailureHistory = {}
@@ -24,6 +21,13 @@ def readNewLines(filePath, lastOffset):
         newOffset = f.tell()
 
     return newLines, newOffset
+
+
+def tailLines(filePath, maxLines=100):
+    with open(filePath, "r") as f:
+        allLines = f.readlines()
+
+    return allLines[-maxLines:]
 
 
 def loadActiveRules(db):
@@ -48,11 +52,11 @@ def matchRules(line, rules):
 
 
 def detectBase64Payload(line, rules):
-    candidates = re.findall(r"[A-Za-z0-9+/]{20,}={0,2}", line)
+    characters = re.findall(r"[A-Za-z0-9+/]{20,}={0,2}", line)
 
-    for candidate in candidates:
+    for character in characters:
         try:
-            decodedBytes = base64.b64decode(candidate, validate=True)
+            decodedBytes = base64.b64decode(character, validate=True)
             decodedText = decodedBytes.decode("utf-8", errors="ignore")
         except Exception:
             continue
@@ -66,7 +70,10 @@ def detectBase64Payload(line, rules):
 
 def cooldown(ipAddress, timestamp, lastAlertTracker, cooldownSeconds=60):
     lastAlert = lastAlertTracker.get(ipAddress)
-    if lastAlert is not None and (timestamp - lastAlert).total_seconds() < cooldownSeconds:
+    if (
+        lastAlert is not None
+        and (timestamp - lastAlert).total_seconds() < cooldownSeconds
+    ):
         return False
 
     lastAlertTracker[ipAddress] = timestamp
@@ -81,11 +88,11 @@ def extractIp(line):
     return None
 
 
-SEVERITY_POINTS = {"low": 1, "medium": 3, "high": 5}
+SEVERITY_LEVEL = {"low": 1, "medium": 3, "high": 5}
 
 
 def updateRiskScore(ipAddress, severity, db):
-    points = SEVERITY_POINTS.get(severity, 1)
+    points = SEVERITY_LEVEL.get(severity, 1)
 
     record = db.query(models.IPReputationCache).filter_by(ip_address=ipAddress).first()
     if record is None:
@@ -133,7 +140,9 @@ def parseAccessLogLine(line):
     return {"ip_address": ipAddress, "timestamp": timestamp, "status_code": statusCode}
 
 
-def checkBruteForce(ipAddress, timestamp, failureHistory, windowSeconds=60, threshold=5):
+def checkBruteForce(
+    ipAddress, timestamp, failureHistory, windowSeconds=60, threshold=5
+):
     if ipAddress not in failureHistory:
         failureHistory[ipAddress] = []
 
@@ -155,18 +164,28 @@ def analyzeLogSource(logSource, db):
 
         matchedRules = matchRules(line, rules)
         for rule in matchedRules:
-            receiveFinding(
-                db, message=f"{rule.name} matched: {line.strip()}", severity=rule.severity,
-                mitreTechnique=rule.mitre_technique, ruleId=rule.id, logSourceId=logSource.id, ipAddress=ipAddress,
+            alertFinding(
+                db,
+                message=f"{rule.name} matched: {line.strip()}",
+                severity=rule.severity,
+                mitreTechnique=rule.mitre_technique,
+                ruleId=rule.id,
+                logSourceId=logSource.id,
+                ipAddress=ipAddress,
             )
             if ipAddress:
                 updateRiskScore(ipAddress, rule.severity, db)
 
         decodedText, base64MatchedRules = detectBase64Payload(line, rules)
         for rule in base64MatchedRules:
-            receiveFinding(
-                db, message=f"{rule.name} (base64-decoded) matched: {decodedText!r}", severity=rule.severity,
-                mitreTechnique=rule.mitre_technique, ruleId=rule.id, logSourceId=logSource.id, ipAddress=ipAddress,
+            alertFinding(
+                db,
+                message=f"{rule.name} (base64-decoded) matched: {decodedText!r}",
+                severity=rule.severity,
+                mitreTechnique=rule.mitre_technique,
+                ruleId=rule.id,
+                logSourceId=logSource.id,
+                ipAddress=ipAddress,
             )
             if ipAddress:
                 updateRiskScore(ipAddress, rule.severity, db)
@@ -174,15 +193,22 @@ def analyzeLogSource(logSource, db):
         parsed = parseAccessLogLine(line)
         if parsed and parsed["status_code"] == 404:
             isScanning = checkBruteForce(
-                parsed["ip_address"], parsed["timestamp"], _repeated404History,
-                windowSeconds=60, threshold=5,
+                parsed["ip_address"],
+                parsed["timestamp"],
+                _repeated404History,
+                windowSeconds=60,
+                threshold=5,
             )
             if isScanning and cooldown(
                 parsed["ip_address"], parsed["timestamp"], _repeated404LastAlert
             ):
-                receiveFinding(
-                    db, message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s", severity="medium",
-                    mitreTechnique="T1595", logSourceId=logSource.id, ipAddress=parsed["ip_address"],
+                alertFinding(
+                    db,
+                    message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s",
+                    severity="medium",
+                    mitreTechnique="T1595",
+                    logSourceId=logSource.id,
+                    ipAddress=parsed["ip_address"],
                 )
                 updateRiskScore(parsed["ip_address"], "medium", db)
 
@@ -199,15 +225,22 @@ def analyzeSshLogSource(logSource, db):
             continue
 
         isBruteForce = checkBruteForce(
-            parsed["ip_address"], parsed["timestamp"], _sshFailureHistory,
-            windowSeconds=60, threshold=5,
+            parsed["ip_address"],
+            parsed["timestamp"],
+            _sshFailureHistory,
+            windowSeconds=60,
+            threshold=5,
         )
         if isBruteForce and cooldown(
             parsed["ip_address"], parsed["timestamp"], _sshLastAlert
         ):
-            receiveFinding(
-                db, message=f"IP {parsed['ip_address']} triggered 5+ failed SSH logins within 60s", severity="high",
-                mitreTechnique="T1110", logSourceId=logSource.id, ipAddress=parsed["ip_address"],
+            alertFinding(
+                db,
+                message=f"IP {parsed['ip_address']} triggered 5+ failed SSH logins within 60s",
+                severity="high",
+                mitreTechnique="T1110",
+                logSourceId=logSource.id,
+                ipAddress=parsed["ip_address"],
             )
             updateRiskScore(parsed["ip_address"], "high", db)
 
@@ -215,7 +248,7 @@ def analyzeSshLogSource(logSource, db):
     db.commit()
 
 
-def runScheduledLogScan(logSourceId):
+def displayLogScan(logSourceId):
     db = SessionLocal()
 
     logSource = db.query(models.LogSource).filter_by(id=logSourceId).first()
@@ -224,10 +257,42 @@ def runScheduledLogScan(logSourceId):
     db.close()
 
 
-def runScheduledSshScan(logSourceId):
+def displaySshScan(logSourceId):
     db = SessionLocal()
 
     logSource = db.query(models.LogSource).filter_by(id=logSourceId).first()
     analyzeSshLogSource(logSource, db)
 
     db.close()
+
+
+def syncingLogs(scheduler, scheduledLogSourceIds, db):
+    """Keep the scheduler's log-scan jobs in sync with the database.
+
+    scheduledLogSourceIds is the set of LogSource ids we've already set up
+    a job for. Called repeatedly (see main.py) so a log source added/removed
+    through the app starts/stops being scanned without a server restart.
+    """
+    activeLogSources = db.query(models.LogSource).filter_by(is_active=True).all()
+    activeIds = {logSource.id: logSource for logSource in activeLogSources}
+
+    for logSourceId in list(scheduledLogSourceIds):
+        if logSourceId not in activeIds:
+            scheduler.remove_job(f"log_scan_{logSourceId}")
+            scheduledLogSourceIds.discard(logSourceId)
+
+    for logSourceId, logSource in activeIds.items():
+        if logSourceId not in scheduledLogSourceIds:
+            scanFunction = (
+                displaySshScan
+                if logSource.source_type == "ssh"
+                else displayLogScan
+            )
+            scheduler.add_job(
+                scanFunction,
+                "interval",
+                seconds=20,
+                kwargs={"logSourceId": logSourceId},
+                id=f"log_scan_{logSourceId}",
+            )
+            scheduledLogSourceIds.add(logSourceId)

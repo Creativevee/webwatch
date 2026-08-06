@@ -1542,3 +1542,6 @@
 198.51.100.30 - - [26/Jul/2026:04:05:00 +0000] "GET /profile?token=dXNlcl9zZXNzaW9uX3Rva2VuX2FiYzEyM3h5ejc4OQ== HTTP/1.1" 200 300 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 203.0.113.99 - - [31/Jul/2026:12:00:00 +0000] "GET /login?user=admin' OR '1'='1 HTTP/1.1" 200 300 "-" "Mozilla/5.0"
 203.0.113.99 - - [31/Jul/2026:12:00:00 +0000] "GET /login?user=admin' OR '1'='1 HTTP/1.1" 200 300 "-" "Mozilla/5.0"
+203.0.113.200 - - [04/Aug/2026:21:30:00 +0000] "GET /livetest HTTP/1.1" 200 100 "-" "curl-test"
+198.51.100.77 - - [04/Aug/2026:21:45:00 +0000] "GET /products?id=1 UNION SELECT username,password FROM users-- HTTP/1.1" 200 512 "-" "Mozilla/5.0"
+198.51.100.90 - - [05/Aug/2026:22:00:00 +0000] "GET /rename-test?id=1 OR 1=1 HTTP/1.1" 200 300 "-" "Mozilla/5.0"

@@ -43,12 +43,33 @@ function DetailRow({ label, value }) {
 
 function AlertModal({ alert, onClose, onResolve, onDelete }) {
   const [tab, setTab] = useState('details')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!alert) return null
 
   const style = SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.medium
   const createdAt = new Date(alert.created_at)
   const hasAbuseScore = alert.abuseipdb_score !== null && alert.abuseipdb_score !== undefined
+
+  async function handleResolveClick(nextResolvedState) {
+    setIsSubmitting(true)
+    try {
+      await onResolve(alert.id, nextResolvedState)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteClick() {
+    if (!window.confirm('Delete this alert permanently? This cannot be undone.')) return
+
+    setIsSubmitting(true)
+    try {
+      await onDelete(alert.id)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div
@@ -148,17 +169,27 @@ function AlertModal({ alert, onClose, onResolve, onDelete }) {
         )}
 
         <div className="mt-6 flex justify-end gap-2">
-          {!alert.is_resolved && (
+          {alert.is_resolved ? (
             <button
-              onClick={() => onResolve(alert.id)}
-              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+              disabled={isSubmitting}
+              onClick={() => handleResolveClick(false)}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Mark unresolved
+            </button>
+          ) : (
+            <button
+              disabled={isSubmitting}
+              onClick={() => handleResolveClick(true)}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
             >
               Mark resolved
             </button>
           )}
           <button
-            onClick={() => onDelete(alert.id)}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            disabled={isSubmitting}
+            onClick={handleDeleteClick}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             Delete
           </button>

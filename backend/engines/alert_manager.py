@@ -4,6 +4,13 @@ import requests
 
 from config import settings
 import models
+import schemas
+from routers.ws import manager as ws_manager
+
+
+def broadcastAlert(alert):
+    alertData = schemas.AlertRead.model_validate(alert).model_dump(mode="json")
+    ws_manager.broadcast_sync(alertData)
 
 
 def createAlert(
@@ -14,8 +21,6 @@ def createAlert(
     logSourceId=None,
     ipAddress=None,
     mitreTechnique=None,
-    abuseipdbScore=None,
-    aiExplanation=None,
 ):
     alert = models.Alert(
         rule_id=ruleId,
@@ -24,12 +29,13 @@ def createAlert(
         message=message,
         severity=severity,
         mitre_technique=mitreTechnique,
-        abuseipdb_score=abuseipdbScore,
-        ai_explanation=aiExplanation,
         is_resolved=False,
     )
     db.add(alert)
     db.commit()
+    db.refresh(alert)
+
+    broadcastAlert(alert)
     return alert
 
 
@@ -126,7 +132,7 @@ def alertOllama(message):
     return response.json()["message"]["content"]
 
 
-def receiveFinding(
+def alertFinding(
     db,
     message,
     severity,
@@ -135,26 +141,7 @@ def receiveFinding(
     logSourceId=None,
     ipAddress=None,
 ):
-    # Step 1: AbuseIPDB reputation lookup (only if we actually have an IP to check)
-    abuseipdbScore = None
-    if ipAddress:
-        try:
-            reputation = getCachedReputation(ipAddress, db)
-            abuseipdbScore = reputation.abuse_confidence_score
-        except Exception as e:
-            print(f"AbuseIPDB lookup failed for {ipAddress}: {e}")
-
-    # Step 2: MITRE tag - passed straight through from whichever rule/detection triggered this
-
-    # Step 3: AI-generated plain-English explanation
-    aiExplanation = None
-    try:
-        aiExplanation = alertOllama(message)
-    except Exception as e:
-        print(f"AI explanation failed: {e}")
-
-    # Step 4: save everything to the database, even if enrichment above partially failed
-    return createAlert(
+    alert = createAlert(
         db,
         message=message,
         severity=severity,
@@ -162,6 +149,22 @@ def receiveFinding(
         logSourceId=logSourceId,
         ipAddress=ipAddress,
         mitreTechnique=mitreTechnique,
-        abuseipdbScore=abuseipdbScore,
-        aiExplanation=aiExplanation,
     )
+
+    if ipAddress:
+        try:
+            reputation = getCachedReputation(ipAddress, db)
+            alert.abuseipdb_score = reputation.abuse_confidence_score
+        except Exception as e:
+            print(f"AbuseIPDB lookup failed for {ipAddress}: {e}")
+
+    try:
+        alert.ai_explanation = alertOllama(message)
+    except Exception as e:
+        print(f"AI explanation failed: {e}")
+
+    db.commit()
+    db.refresh(alert)
+    broadcastAlert(alert)
+
+    return alert

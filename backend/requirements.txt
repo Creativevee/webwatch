@@ -1,11 +1,11 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 SQLAlchemy==2.0.35
-pydantic==2.9.2
+pydantic>=2.9.2,<3
 pydantic-settings==2.5.2
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
+bcrypt>=4.0.1,<5
 python-multipart==0.0.12
 python-dotenv==1.0.1
 APScheduler==3.10.4
@@ -13,6 +13,3 @@ watchdog==5.0.3
 requests==2.32.3
 openai==1.51.0
 websockets==13.1
-pandas==2.2.3
-pyarrow==17.0.0
-matplotlib==3.9.2

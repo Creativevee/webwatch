@@ -26,28 +26,28 @@ def create_access_token(username: str) -> str:
     )
 
 
-def get_current_user(
-    auth_credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> models.User:
-    credentials_error = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
-    token = auth_credentials.credentials
-
+def get_user_from_token(token: str, db: Session) -> models.User | None:
     try:
         payload = jwt.decode(
             token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
         )
         username = payload.get("sub")
     except JWTError:
-        raise credentials_error
+        return None
 
     if username is None:
-        raise credentials_error
+        return None
 
-    user = db.query(models.User).filter_by(username=username).first()
+    return db.query(models.User).filter_by(username=username).first()
+
+
+def get_current_user(
+    auth_credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> models.User:
+    user = get_user_from_token(auth_credentials.credentials, db)
     if user is None:
-        raise credentials_error
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     return user
 

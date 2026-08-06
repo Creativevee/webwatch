@@ -1,8 +1,23 @@
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator
+
+
+def _assume_utc(value):
+    # SQLite/SQLAlchemy hand back "naive" datetimes (no timezone attached), but
+    # every one of them (datetime.utcnow(), SQLite's CURRENT_TIMESTAMP) is
+    # actually already in UTC - this just makes that explicit, so the JSON sent
+    # to the frontend includes a "Z" and the browser converts it to the
+    # viewer's local time correctly instead of assuming it's already local
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+UTCDatetime = Annotated[datetime, BeforeValidator(_assume_utc)]
 
 
 class Severity(str, Enum):
@@ -25,7 +40,7 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     id: int
     is_active: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,7 +59,7 @@ class WebFolderRead(WebFolderBase):
     id: int
     owner_id: int
     is_active: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,8 +78,8 @@ class FileHashCreate(FileHashBase):
 class FileHashRead(FileHashBase):
     id: int
     folder_id: int
-    last_modified: Optional[datetime] = None
-    last_checked: datetime
+    last_modified: Optional[UTCDatetime] = None
+    last_checked: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -84,7 +99,7 @@ class LogSourceRead(LogSourceBase):
     id: int
     folder_id: Optional[int] = None
     is_active: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,6 +111,15 @@ class RuleBase(BaseModel):
     severity: Severity = Severity.medium
     mitre_technique: Optional[str] = None
     description: Optional[str] = None
+
+    @field_validator("pattern")
+    @classmethod
+    def pattern_must_be_valid_regex(cls, value):
+        try:
+            re.compile(value)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {e}")
+        return value
 
 
 class RuleCreate(RuleBase):
@@ -110,11 +134,22 @@ class RuleUpdate(BaseModel):
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
+    @field_validator("pattern")
+    @classmethod
+    def pattern_must_be_valid_regex(cls, value):
+        if value is None:
+            return value
+        try:
+            re.compile(value)
+        except re.error as e:
+            raise ValueError(f"Invalid regex pattern: {e}")
+        return value
+
 
 class RuleRead(RuleBase):
     id: int
     is_active: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -144,7 +179,7 @@ class AlertRead(AlertBase):
     abuseipdb_score: Optional[int] = None
     ai_explanation: Optional[str] = None
     is_resolved: bool
-    created_at: datetime
+    created_at: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,7 +194,7 @@ class IPReputationBase(BaseModel):
 
 class IPReputationRead(IPReputationBase):
     id: int
-    last_checked: datetime
+    last_checked: UTCDatetime
 
     model_config = ConfigDict(from_attributes=True)
 
