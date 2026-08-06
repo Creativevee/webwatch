@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from ipaddress import ip_address
 
 import requests
 
@@ -151,7 +152,7 @@ def alertFinding(
         mitreTechnique=mitreTechnique,
     )
 
-    if ipAddress:
+    if ipAddress and not ip_address(ipAddress).is_private:
         try:
             reputation = getCachedReputation(ipAddress, db)
             alert.abuseipdb_score = reputation.abuse_confidence_score
