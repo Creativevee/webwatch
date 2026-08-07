@@ -296,7 +296,7 @@ def syncingLogs(scheduler, scheduledLogSourceIds, db):
             scheduler.add_job(
                 scanFunction,
                 "interval",
-                seconds=20,
+                seconds=3,
                 kwargs={"logSourceId": logSourceId},
                 id=f"log_scan_{logSourceId}",
             )
