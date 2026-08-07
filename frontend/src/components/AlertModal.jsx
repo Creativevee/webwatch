@@ -150,6 +150,13 @@ function AlertModal({ alert, onClose, onResolve, onDelete }) {
             </div>
 
             <DetailRow label="Status" value={alert.is_resolved ? 'Resolved' : 'Unresolved'} />
+
+            <div className="pt-2">
+              <p className="mb-1 text-sm text-gray-500 dark:text-gray-400">Message</p>
+              <div className="max-h-32 overflow-y-auto rounded-lg bg-gray-100 p-3 text-sm break-words text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                {alert.message}
+              </div>
+            </div>
           </div>
         )}
 
