@@ -7,6 +7,7 @@ from urllib.parse import unquote
 
 from database import SessionLocal
 from engines.alert_manager import alertFinding
+from engines.anomaly import checkAnomaly
 import models
 
 _repeated404History = {}
@@ -194,6 +195,21 @@ def analyzeLogSource(logSource, db):
             )
             if ipAddress:
                 updateRiskScore(ipAddress, rule.severity, db)
+
+        if not matchedRules and not base64MatchedRules:
+            try:
+                if checkAnomaly(line):
+                    alertFinding(
+                        db,
+                        message=f"[ML Anomaly] unusual request pattern: {line.strip()}",
+                        severity="medium",
+                        logSourceId=logSource.id,
+                        ipAddress=ipAddress,
+                    )
+                    if ipAddress:
+                        updateRiskScore(ipAddress, "medium", db)
+            except Exception as e:
+                print(f"Anomaly check failed: {e}")
 
         parsed = parseAccessLogLine(line)
         if parsed and parsed["status_code"] == 404:

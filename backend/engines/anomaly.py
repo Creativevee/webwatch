@@ -1,8 +1,16 @@
 import math
 import re
 
+import joblib
+
 REQUEST_LINE_PATTERN = re.compile(r'"[A-Z]+\s+(\S+)\s+HTTP/[\d.]+"\s+(\d+)')
 SPECIAL_CHARACTERS = "'\"<>;|%=.@"
+MODEL_PATH = "trained_models/anomaly_model.joblib"
+
+try:
+    anomalyModel = joblib.load(MODEL_PATH)
+except FileNotFoundError:
+    anomalyModel = None
 
 
 def extractRequestPath(logLine):
@@ -52,3 +60,15 @@ def extractFeatures(logLine):
         statusCode,
     ]
     return features
+
+
+def checkAnomaly(logLine):
+    if anomalyModel is None:
+        return False
+
+    features = extractFeatures(logLine)
+    if features is None:
+        return False
+
+    prediction = anomalyModel.predict([features])[0]
+    return prediction == -1
