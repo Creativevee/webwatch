@@ -196,7 +196,7 @@ def analyzeLogSource(logSource, db):
             if ipAddress:
                 updateRiskScore(ipAddress, rule.severity, db)
 
-        if not matchedRules and not base64MatchedRules:
+        if not matchedRules and not base64MatchedRules and "/socket.io/" not in line:
             try:
                 if checkAnomaly(line):
                     alertFinding(

@@ -23,7 +23,7 @@ def main():
     featureRows = buildTrainingData()
     print(f"Training on {len(featureRows)} normal requests")
 
-    model = IsolationForest(contamination=0.05, random_state=42)
+    model = IsolationForest(contamination=0.01, random_state=42)
     model.fit(featureRows)
 
     joblib.dump(model, MODEL_OUTPUT_PATH)
