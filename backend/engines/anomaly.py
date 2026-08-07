@@ -4,7 +4,7 @@ import re
 import joblib
 
 REQUEST_LINE_PATTERN = re.compile(r'"[A-Z]+\s+(\S+)\s+HTTP/[\d.]+"\s+(\d+)')
-SPECIAL_CHARACTERS = "'\"<>;|%=.@"
+SPECIAL_CHARACTERS = "'\"<>;|%=.@{}()`*"
 MODEL_PATH = "trained_models/anomaly_model.joblib"
 
 try:
