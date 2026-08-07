@@ -1,5 +1,6 @@
 import base64
 import html
+import os
 import re
 from datetime import datetime, timedelta
 from urllib.parse import unquote
@@ -15,6 +16,10 @@ _sshLastAlert = {}
 
 
 def readNewLines(filePath, lastOffset):
+    currentSize = os.path.getsize(filePath)
+    if currentSize < lastOffset:
+        lastOffset = 0
+
     with open(filePath, "r") as f:
         f.seek(lastOffset)
         newLines = f.readlines()

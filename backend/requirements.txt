@@ -13,3 +13,5 @@ watchdog==5.0.3
 requests==2.32.3
 openai==1.51.0
 websockets==13.1
+scikit-learn==1.9.0
+joblib==1.5.3
