@@ -8,7 +8,7 @@ import requests
 from playbook import HTTP_SCENARIOS, SPECIAL_SCENARIOS, TARGETS
 
 API_BASE = "http://192.168.1.17:8000"
-WAIT_SECONDS = 4
+WAIT_SECONDS = 8
 RUNS = 3
 
 
