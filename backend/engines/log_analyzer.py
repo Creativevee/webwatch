@@ -113,20 +113,29 @@ def updateRiskScore(ipAddress, severity, db):
 
 def parseFailedLogin(line):
     match = re.search(
+        r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*Failed password for "
+        r"(?:invalid user )?\S+ from (\d+\.\d+\.\d+\.\d+)",
+        line,
+    )
+    if match:
+        timestampStr = match.group(1)
+        ipAddress = match.group(2)
+        timestamp = datetime.strptime(timestampStr, "%Y-%m-%dT%H:%M:%S")
+        return {"timestamp": timestamp, "ip_address": ipAddress}
+
+    oldFormatMatch = re.search(
         r"^(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}).*Failed password for "
         r"(?:invalid user )?\S+ from (\d+\.\d+\.\d+\.\d+)",
         line,
     )
-    if not match:
-        return None
+    if oldFormatMatch:
+        timestampStr = oldFormatMatch.group(1)
+        ipAddress = oldFormatMatch.group(2)
+        currentYear = datetime.now().year
+        timestamp = datetime.strptime(f"{currentYear} {timestampStr}", "%Y %b %d %H:%M:%S")
+        return {"timestamp": timestamp, "ip_address": ipAddress}
 
-    timestampStr = match.group(1)
-    ipAddress = match.group(2)
-
-    currentYear = datetime.now().year
-    timestamp = datetime.strptime(f"{currentYear} {timestampStr}", "%Y %b %d %H:%M:%S")
-
-    return {"timestamp": timestamp, "ip_address": ipAddress}
+    return None
 
 
 def parseAccessLogLine(line):
