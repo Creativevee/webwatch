@@ -100,10 +100,10 @@ HTTP_SCENARIOS = [
         "path": "/rest/products/search?q=",
     },
     {
-        "name": "Normal: Product Detail",
+        "name": "Normal: Languages List",
         "category": "normal",
         "mitre_technique": None,
-        "path": "/rest/products/1",
+        "path": "/rest/languages",
     },
     {
         "name": "Normal: Score Board",
