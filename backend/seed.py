@@ -64,6 +64,29 @@ DEFAULT_RULES = [
     },
 ]
 
+# These aren't regex rules - they're frequency-based checks (X events from one IP within
+# Y seconds) hardcoded in log_analyzer.py. They exist as Rule rows purely so their alerts
+# get a proper name via alert.rule_name, same as regular rules. is_active=False keeps them
+# out of the normal per-line pattern-matching loop entirely.
+SYSTEM_RULES = [
+    {
+        "name": "SSH Brute Force",
+        "pattern": "system-frequency-detection-ssh-brute-force",
+        "severity": "high",
+        "mitre_technique": "T1110",
+        "description": "5+ failed SSH logins from the same IP within 60 seconds.",
+        "is_active": False,
+    },
+    {
+        "name": "404 Scan",
+        "pattern": "system-frequency-detection-404-scan",
+        "severity": "medium",
+        "mitre_technique": "T1595",
+        "description": "5+ 404 responses from the same IP within 60 seconds.",
+        "is_active": False,
+    },
+]
+
 
 def seed_admin_user(db):
     existing = db.query(models.User).filter_by(username="admin").first()
@@ -82,10 +105,10 @@ def seed_admin_user(db):
     print("Admin user created: admin / admin123")
 
 
-def seed_rules(db):
+def seed_rules(db, rules):
     created_count = 0
 
-    for rule_data in DEFAULT_RULES:
+    for rule_data in rules:
         existing = db.query(models.Rule).filter_by(name=rule_data["name"]).first()
         if existing:
             continue
@@ -95,7 +118,7 @@ def seed_rules(db):
         created_count += 1
 
     db.commit()
-    print(f"Rules seeded: {created_count} created, {len(DEFAULT_RULES) - created_count} already existed.")
+    print(f"Rules seeded: {created_count} created, {len(rules) - created_count} already existed.")
 
 
 def seed():
@@ -104,7 +127,8 @@ def seed():
     db = SessionLocal()
     try:
         seed_admin_user(db)
-        seed_rules(db)
+        seed_rules(db, DEFAULT_RULES)
+        seed_rules(db, SYSTEM_RULES)
     finally:
         db.close()
 

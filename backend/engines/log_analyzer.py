@@ -40,6 +40,11 @@ def loadActiveRules(db):
     return db.query(models.Rule).filter_by(is_active=True).all()
 
 
+def findSystemRuleId(ruleName, db):
+    rule = db.query(models.Rule).filter_by(name=ruleName).first()
+    return rule.id if rule else None
+
+
 def normalizeLine(line):
     decodedLine = unquote(line)
     decodedLine = html.unescape(decodedLine)
@@ -237,6 +242,7 @@ def analyzeLogSource(logSource, db):
                     message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s",
                     severity="medium",
                     mitreTechnique="T1595",
+                    ruleId=findSystemRuleId("404 Scan", db),
                     logSourceId=logSource.id,
                     ipAddress=parsed["ip_address"],
                 )
@@ -269,6 +275,7 @@ def analyzeSshLogSource(logSource, db):
                 message=f"IP {parsed['ip_address']} triggered 5+ failed SSH logins within 60s",
                 severity="high",
                 mitreTechnique="T1110",
+                ruleId=findSystemRuleId("SSH Brute Force", db),
                 logSourceId=logSource.id,
                 ipAddress=parsed["ip_address"],
             )
