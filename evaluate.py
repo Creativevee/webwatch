@@ -8,7 +8,7 @@ import requests
 from playbook import HTTP_SCENARIOS, SPECIAL_SCENARIOS, TARGETS
 
 API_BASE = "http://192.168.1.17:8000"
-WAIT_SECONDS = 8
+WAIT_SECONDS = 12
 RUNS = 3
 
 
@@ -57,13 +57,11 @@ def earliestAlertTime(alerts):
     return min(times)
 
 
-def runHttpScenarios(token, runNumber, results):
+def runHttpScenariosForWebwatch(token, runNumber, results):
     for scenario in HTTP_SCENARIOS:
         fireTime = datetime.now(timezone.utc)
 
         fireHttpScenario(scenario, TARGETS["webwatch"])
-        modsecStatus = fireHttpScenario(scenario, TARGETS["modsecurity"])
-
         time.sleep(WAIT_SECONDS)
 
         alerts = getAlertsSince(token, fireTime)
@@ -79,15 +77,31 @@ def runHttpScenarios(token, runNumber, results):
                 "mitre_technique": scenario.get("mitre_technique"),
                 "webwatch_caught": caught,
                 "webwatch_latency_seconds": latency,
-                "modsecurity_blocked": modsecStatus == "403",
+                "modsecurity_blocked": None,
                 "fail2ban_caught": None,
                 "aide_caught": None,
             }
         )
 
         status = "CAUGHT" if caught else "missed"
-        blockedLabel = " | ModSec BLOCKED" if modsecStatus == "403" else ""
-        print(f"Run {runNumber} - {scenario['name']}: WebWatch {status}{blockedLabel}")
+        print(f"Run {runNumber} - {scenario['name']}: WebWatch {status}")
+
+
+def runHttpScenariosForModsecurity(runNumber, results):
+    resultsByName = {
+        row["scenario"]: row for row in results if row["run"] == runNumber
+    }
+
+    for scenario in HTTP_SCENARIOS:
+        statusCode = fireHttpScenario(scenario, TARGETS["modsecurity"])
+        blocked = statusCode == "403"
+
+        if scenario["name"] in resultsByName:
+            resultsByName[scenario["name"]]["modsecurity_blocked"] = blocked
+
+        label = "BLOCKED" if blocked else "passed"
+        print(f"Run {runNumber} - {scenario['name']}: ModSec {label} (HTTP {statusCode})")
+        time.sleep(1)
 
 
 def runSshBruteForce(token, runNumber, results):
@@ -162,7 +176,8 @@ def runEvaluation():
 
     for runNumber in range(1, RUNS + 1):
         print(f"\n########## RUN {runNumber} of {RUNS} ##########")
-        runHttpScenarios(token, runNumber, results)
+        runHttpScenariosForWebwatch(token, runNumber, results)
+        runHttpScenariosForModsecurity(runNumber, results)
         runSshBruteForce(token, runNumber, results)
         runFileTamper(token, runNumber, results)
 
