@@ -100,10 +100,10 @@ HTTP_SCENARIOS = [
         "path": "/rest/products/search?q=",
     },
     {
-        "name": "Normal: View Basket",
+        "name": "Normal: Product Detail",
         "category": "normal",
         "mitre_technique": None,
-        "path": "/rest/basket/1",
+        "path": "/rest/products/1",
     },
     {
         "name": "Normal: Score Board",
@@ -145,7 +145,7 @@ SPECIAL_SCENARIOS = [
 def runHttpScenario(scenario, targetName, targetUrl):
     extraArgs = scenario.get("extra_args", [])
     url = f"{targetUrl}{scenario['path']}"
-    command = ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}"] + extraArgs + [url]
+    command = ["curl", "-s", "-g", "-o", "/dev/null", "-w", "%{http_code}"] + extraArgs + [url]
 
     result = subprocess.run(command, capture_output=True, text=True)
     statusCode = result.stdout.strip()
@@ -157,7 +157,7 @@ def runHttpScenario(scenario, targetName, targetUrl):
 
 def runFuzzingScenario(targetName, targetUrl):
     shellCommand = (
-        f"curl -s -o /dev/null -w '%{{http_code}}' "
+        f"curl -s -g -o /dev/null -w '%{{http_code}}' "
         f"\"{targetUrl}/rest/products/search?q=$(head -c 200 /dev/urandom | base64 | tr -d '\\n')\""
     )
     result = subprocess.run(["bash", "-c", shellCommand], capture_output=True, text=True)
