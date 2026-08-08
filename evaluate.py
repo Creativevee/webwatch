@@ -106,6 +106,12 @@ def runHttpScenariosForModsecurity(runNumber, results):
 
 def runSshBruteForce(token, runNumber, results):
     scenario = SPECIAL_SCENARIOS[0]
+
+    subprocess.run(
+        ["sudo", "fail2ban-client", "set", "sshd", "unbanip", "192.168.1.17"],
+        capture_output=True,
+    )
+
     fireTime = datetime.now(timezone.utc)
     banCountBefore = checkFail2banBanCount()
 
