@@ -64,10 +64,7 @@ DEFAULT_RULES = [
     },
 ]
 
-# These aren't regex rules - they're frequency-based checks (X events from one IP within
-# Y seconds) hardcoded in log_analyzer.py. They exist as Rule rows purely so their alerts
-# get a proper name via alert.rule_name, same as regular rules. is_active=False keeps them
-# out of the normal per-line pattern-matching loop entirely.
+
 SYSTEM_RULES = [
     {
         "name": "SSH Brute Force",
@@ -96,7 +93,7 @@ def seed_admin_user(db):
 
     admin = models.User(
         username="admin",
-        email="admin@webwatch.local",
+        email="admin@webwatch.com",
         hashed_password=pwd_context.hash("admin123"),
         is_active=True,
     )
@@ -118,7 +115,9 @@ def seed_rules(db, rules):
         created_count += 1
 
     db.commit()
-    print(f"Rules seeded: {created_count} created, {len(rules) - created_count} already existed.")
+    print(
+        f"Rules seeded: {created_count} created, {len(rules) - created_count} already existed."
+    )
 
 
 def seed():
