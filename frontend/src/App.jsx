@@ -11,6 +11,7 @@ import Files from './pages/Files'
 import Logs from './pages/Logs'
 import Rules from './pages/Rules'
 import ProtectedRoute from './components/ProtectedRoute'
+import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
 
 function App() {
@@ -140,47 +141,68 @@ function App() {
   return (
     <Routes>
       <Route path="/"
-        element={<ProtectedRoute>{homePage}</ProtectedRoute>}
+        element={
+          <ErrorBoundary>
+            <ProtectedRoute>{homePage}</ProtectedRoute>
+          </ErrorBoundary>
+        }
       />
-      <Route path="/login" element={<Login />} />
+      <Route
+        path="/login"
+        element={
+          <ErrorBoundary>
+            <Login />
+          </ErrorBoundary>
+        }
+      />
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/alerts"
         element={
-          <ProtectedRoute>
-            <Alerts />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Alerts />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/files"
         element={
-          <ProtectedRoute>
-            <Files />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Files />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/logs"
         element={
-          <ProtectedRoute>
-            <Logs />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Logs />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
       <Route
         path="/rules"
         element={
-          <ProtectedRoute>
-            <Rules />
-          </ProtectedRoute>
+          <ErrorBoundary>
+            <ProtectedRoute>
+              <Rules />
+            </ProtectedRoute>
+          </ErrorBoundary>
         }
       />
     </Routes>
