@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Shield } from 'lucide-react'
 import client from '../api/client'
+import logo from '../assets/logo.png'
 
 function Login() {
   const [username, setUsername] = useState('')
@@ -32,9 +32,7 @@ function Login() {
         className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900"
       >
         <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent)] text-white">
-            <Shield size={20} />
-          </div>
+          <img src={logo} alt="WebWatch logo" className="h-10 w-10" />
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">WebWatch</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Log in to your account</p>
         </div>

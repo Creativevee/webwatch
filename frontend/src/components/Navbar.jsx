@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, ChevronDown, Search, Shield } from 'lucide-react'
+import { Bell, ChevronDown, Search } from 'lucide-react'
 import client from '../api/client'
+import logo from '../assets/logo.png'
 
 function Navbar() {
   const navigate = useNavigate()
@@ -31,9 +32,7 @@ function Navbar() {
   return (
     <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
       <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] text-white">
-          <Shield size={18} />
-        </div>
+        <img src={logo} alt="WebWatch logo" className="h-8 w-8" />
         <span className="font-semibold text-gray-900 dark:text-gray-100">WebWatch</span>
       </div>
 
