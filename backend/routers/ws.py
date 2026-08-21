@@ -11,9 +11,6 @@ router = APIRouter()
 class ConnectionManager:
     def __init__(self):
         self.active_connections = []
-        # the running asyncio event loop, set once at app startup (see main.py's
-        # lifespan) - needed so code running on a background thread (APScheduler
-        # jobs, the watchdog file-change handler) can safely schedule a broadcast
         self.loop = None
 
     async def connect(self, websocket: WebSocket):

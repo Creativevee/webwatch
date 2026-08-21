@@ -102,6 +102,23 @@ def computeMitreBreakdown(rows):
     }
 
 
+def computeAverageLatencyByScenario(rows):
+    latenciesByScenario = defaultdict(list)
+
+    for row in rows:
+        if row["webwatch_caught"] != "True" or row["webwatch_latency_seconds"] == "":
+            continue
+
+        latenciesByScenario[row["scenario"]].append(float(row["webwatch_latency_seconds"]))
+
+    averages = {
+        scenario: sum(values) / len(values)
+        for scenario, values in latenciesByScenario.items()
+    }
+
+    return dict(sorted(averages.items(), key=lambda item: item[1]))
+
+
 def styleAxes(ax):
     ax.set_facecolor(SURFACE)
     ax.spines["top"].set_visible(False)
@@ -218,6 +235,38 @@ def printSummary(rates, webwatchMetrics, modsecMetrics, mitreRates):
         print(f"  {technique}: {rate * 100:.1f}%")
 
 
+def chartAverageLatency(latencyByScenario):
+    fig, ax = plt.subplots(figsize=(7, 6), facecolor=SURFACE)
+    styleAxes(ax)
+    ax.xaxis.grid(True, color=GRIDLINE, linewidth=0.8)
+    ax.yaxis.grid(False)
+
+    scenarios = list(latencyByScenario.keys())
+    values = list(latencyByScenario.values())
+
+    bars = ax.barh(scenarios, values, color=COLOR_WEBWATCH, height=0.55)
+
+    for bar in bars:
+        width = bar.get_width()
+        ax.text(
+            width + 0.15,
+            bar.get_y() + bar.get_height() / 2,
+            f"{width:.1f}s",
+            ha="left",
+            va="center",
+            fontsize=9,
+            color=TEXT_PRIMARY,
+        )
+
+    ax.set_xlabel("Seconds (lower is faster)", color=TEXT_SECONDARY, fontsize=9)
+    ax.set_title("WebWatch: average detection latency by scenario", fontsize=12, color=TEXT_PRIMARY, loc="left", pad=12)
+    ax.set_xlim(0, max(values) * 1.2)
+
+    fig.tight_layout()
+    fig.savefig("chart_average_latency.png", dpi=150)
+    print("Saved chart_average_latency.png")
+
+
 def main():
     rows = loadRows()
 
@@ -225,12 +274,20 @@ def main():
     webwatchMetrics = computeMetrics(rows, "webwatch_caught")
     modsecMetrics = computeMetrics(rows, "modsecurity_blocked")
     mitreRates = computeMitreBreakdown(rows)
+    latencyByScenario = computeAverageLatencyByScenario(rows)
 
     printSummary(rates, webwatchMetrics, modsecMetrics, mitreRates)
+
+    print("\n=== Average detection latency (seconds) ===")
+    for scenario, avgLatency in latencyByScenario.items():
+        print(f"  {scenario}: {avgLatency:.2f}s")
+    perScenarioAverages = list(latencyByScenario.values())
+    print(f"\n  Overall average: {sum(perScenarioAverages) / len(perScenarioAverages):.2f}s")
 
     chartDetectionRateByTool(rates)
     chartPrecisionRecallF1Fpr(webwatchMetrics, modsecMetrics)
     chartMitreBreakdown(mitreRates)
+    chartAverageLatency(latencyByScenario)
 
 
 if __name__ == "__main__":
