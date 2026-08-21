@@ -160,7 +160,7 @@ def alertFinding(
             print(f"AbuseIPDB lookup failed for {ipAddress}: {e}")
 
     try:
-        alert.ai_explanation = alertOllama(message)
+        alert.ai_explanation = alertOpenAi(message)
     except Exception as e:
         print(f"AI explanation failed: {e}")
 
