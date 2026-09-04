@@ -79,7 +79,7 @@ function LiveLogTerminal({ logSourceId, logSourceName, onClose }) {
   return (
     <div className="rounded-2xl border border-gray-800 bg-black p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <p className="font-mono text-sm text-gray-400">tail -f {logSourceName}</p>
+        <p className="font-mono text-sm text-gray-400">terminal: {logSourceName}</p>
         <button
           type="button"
           onClick={onClose}
