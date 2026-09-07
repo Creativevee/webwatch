@@ -20,9 +20,6 @@ function matchesFilters(alert, { severity, category, ipAddress, date }) {
   return true
 }
 
-// an alert broadcasts twice - once immediately, once again after AbuseIPDB/AI
-// enrichment finishes - so an id already in the list means "update it in
-// place", not "add a second copy"
 function upsertAlert(prev, alert) {
   const exists = prev.some((a) => a.id === alert.id)
   if (exists) {

@@ -74,4 +74,4 @@ def get_me(current_user: models.User = Depends(get_current_user)):
 
 @router.post("/logout")
 def logout():
-    return {"message": "logout endpoint not yet implemented"}
+    return {}
