@@ -137,7 +137,9 @@ def parseFailedLogin(line):
         timestampStr = oldFormatMatch.group(1)
         ipAddress = oldFormatMatch.group(2)
         currentYear = datetime.now().year
-        timestamp = datetime.strptime(f"{currentYear} {timestampStr}", "%Y %b %d %H:%M:%S")
+        timestamp = datetime.strptime(
+            f"{currentYear} {timestampStr}", "%Y %b %d %H:%M:%S"
+        )
         return {"timestamp": timestamp, "ip_address": ipAddress}
 
     return None
@@ -175,6 +177,84 @@ def checkBruteForce(
     return len(recentFailures) >= threshold
 
 
+def checkDirectRules(line, rules, ipAddress, logSource, db):
+    matchedRules = matchRules(line, rules)
+    for rule in matchedRules:
+        alertFinding(
+            db,
+            message=f"{rule.name} matched: {line.strip()}",
+            severity=rule.severity,
+            mitreTechnique=rule.mitre_technique,
+            ruleId=rule.id,
+            logSourceId=logSource.id,
+            ipAddress=ipAddress,
+        )
+        if ipAddress:
+            updateRiskScore(ipAddress, rule.severity, db)
+    return matchedRules
+
+
+def checkBase64Rules(line, rules, ipAddress, logSource, db):
+    decodedText, base64MatchedRules = detectBase64Payload(line, rules)
+    for rule in base64MatchedRules:
+        alertFinding(
+            db,
+            message=f"{rule.name} (base64-decoded) matched: {decodedText!r}",
+            severity=rule.severity,
+            mitreTechnique=rule.mitre_technique,
+            ruleId=rule.id,
+            logSourceId=logSource.id,
+            ipAddress=ipAddress,
+        )
+        if ipAddress:
+            updateRiskScore(ipAddress, rule.severity, db)
+    return base64MatchedRules
+
+
+def checkMlAnomaly(line, ipAddress, logSource, db):
+    if "/socket.io/" in line:
+        return
+
+    try:
+        if checkAnomaly(line):
+            alertFinding(
+                db,
+                message=f"[ML Anomaly] unusual request pattern: {line.strip()}",
+                severity="medium",
+                logSourceId=logSource.id,
+                ipAddress=ipAddress,
+            )
+            if ipAddress:
+                updateRiskScore(ipAddress, "medium", db)
+    except Exception as e:
+        print(f"Anomaly check failed: {e}")
+
+
+def check404Scanning(line, logSource, db):
+    parsed = parseAccessLogLine(line)
+    if not parsed or parsed["status_code"] != 404:
+        return
+
+    isScanning = checkBruteForce(
+        parsed["ip_address"],
+        parsed["timestamp"],
+        _repeated404History,
+        windowSeconds=60,
+        threshold=5,
+    )
+    if isScanning and cooldown(parsed["ip_address"], parsed["timestamp"], _repeated404LastAlert):
+        alertFinding(
+            db,
+            message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s",
+            severity="medium",
+            mitreTechnique="T1595",
+            ruleId=findSystemRuleId("404 Scan", db),
+            logSourceId=logSource.id,
+            ipAddress=parsed["ip_address"],
+        )
+        updateRiskScore(parsed["ip_address"], "medium", db)
+
+
 def analyzeLogSource(logSource, db):
     rules = loadActiveRules(db)
     newLines, newOffset = readNewLines(logSource.path, logSource.last_read_offset)
@@ -182,71 +262,13 @@ def analyzeLogSource(logSource, db):
     for line in newLines:
         ipAddress = extractIp(line)
 
-        matchedRules = matchRules(line, rules)
-        for rule in matchedRules:
-            alertFinding(
-                db,
-                message=f"{rule.name} matched: {line.strip()}",
-                severity=rule.severity,
-                mitreTechnique=rule.mitre_technique,
-                ruleId=rule.id,
-                logSourceId=logSource.id,
-                ipAddress=ipAddress,
-            )
-            if ipAddress:
-                updateRiskScore(ipAddress, rule.severity, db)
+        matchedRules = checkDirectRules(line, rules, ipAddress, logSource, db)
+        base64MatchedRules = checkBase64Rules(line, rules, ipAddress, logSource, db)
 
-        decodedText, base64MatchedRules = detectBase64Payload(line, rules)
-        for rule in base64MatchedRules:
-            alertFinding(
-                db,
-                message=f"{rule.name} (base64-decoded) matched: {decodedText!r}",
-                severity=rule.severity,
-                mitreTechnique=rule.mitre_technique,
-                ruleId=rule.id,
-                logSourceId=logSource.id,
-                ipAddress=ipAddress,
-            )
-            if ipAddress:
-                updateRiskScore(ipAddress, rule.severity, db)
+        if not matchedRules and not base64MatchedRules:
+            checkMlAnomaly(line, ipAddress, logSource, db)
 
-        if not matchedRules and not base64MatchedRules and "/socket.io/" not in line:
-            try:
-                if checkAnomaly(line):
-                    alertFinding(
-                        db,
-                        message=f"[ML Anomaly] unusual request pattern: {line.strip()}",
-                        severity="medium",
-                        logSourceId=logSource.id,
-                        ipAddress=ipAddress,
-                    )
-                    if ipAddress:
-                        updateRiskScore(ipAddress, "medium", db)
-            except Exception as e:
-                print(f"Anomaly check failed: {e}")
-
-        parsed = parseAccessLogLine(line)
-        if parsed and parsed["status_code"] == 404:
-            isScanning = checkBruteForce(
-                parsed["ip_address"],
-                parsed["timestamp"],
-                _repeated404History,
-                windowSeconds=60,
-                threshold=5,
-            )
-            if isScanning and cooldown(
-                parsed["ip_address"], parsed["timestamp"], _repeated404LastAlert
-            ):
-                alertFinding(
-                    db,
-                    message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s",
-                    severity="medium",
-                    mitreTechnique="T1595",
-                    ruleId=findSystemRuleId("404 Scan", db),
-                    logSourceId=logSource.id,
-                    ipAddress=parsed["ip_address"],
-                )
-                updateRiskScore(parsed["ip_address"], "medium", db)
+        check404Scanning(line, logSource, db)
 
     logSource.last_read_offset = newOffset
     db.commit()
@@ -304,12 +326,6 @@ def displaySshScan(logSourceId):
 
 
 def syncingLogs(scheduler, scheduledLogSourceIds, db):
-    """Keep the scheduler's log-scan jobs in sync with the database.
-
-    scheduledLogSourceIds is the set of LogSource ids we've already set up
-    a job for. Called repeatedly (see main.py) so a log source added/removed
-    through the app starts/stops being scanned without a server restart.
-    """
     activeLogSources = db.query(models.LogSource).filter_by(is_active=True).all()
     activeIds = {logSource.id: logSource for logSource in activeLogSources}
 
@@ -321,9 +337,7 @@ def syncingLogs(scheduler, scheduledLogSourceIds, db):
     for logSourceId, logSource in activeIds.items():
         if logSourceId not in scheduledLogSourceIds:
             scanFunction = (
-                displaySshScan
-                if logSource.source_type == "ssh"
-                else displayLogScan
+                displaySshScan if logSource.source_type == "ssh" else displayLogScan
             )
             scheduler.add_job(
                 scanFunction,

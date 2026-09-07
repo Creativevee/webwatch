@@ -7,11 +7,6 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, field_validator
 
 
 def _assume_utc(value):
-    # SQLite/SQLAlchemy hand back "naive" datetimes (no timezone attached), but
-    # every one of them (datetime.utcnow(), SQLite's CURRENT_TIMESTAMP) is
-    # actually already in UTC - this just makes that explicit, so the JSON sent
-    # to the frontend includes a "Z" and the browser converts it to the
-    # viewer's local time correctly instead of assuming it's already local
     if isinstance(value, datetime) and value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
