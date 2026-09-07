@@ -177,7 +177,7 @@ def checkBruteForce(
     return len(recentFailures) >= threshold
 
 
-def checkDirectRules(line, rules, ipAddress, logSource, db):
+def checkRules(line, rules, ipAddress, logSource, db):
     matchedRules = matchRules(line, rules)
     for rule in matchedRules:
         alertFinding(
@@ -242,7 +242,9 @@ def check404Scanning(line, logSource, db):
         windowSeconds=60,
         threshold=5,
     )
-    if isScanning and cooldown(parsed["ip_address"], parsed["timestamp"], _repeated404LastAlert):
+    if isScanning and cooldown(
+        parsed["ip_address"], parsed["timestamp"], _repeated404LastAlert
+    ):
         alertFinding(
             db,
             message=f"IP {parsed['ip_address']} triggered 5+ 404s within 60s",
@@ -262,7 +264,7 @@ def analyzeLogSource(logSource, db):
     for line in newLines:
         ipAddress = extractIp(line)
 
-        matchedRules = checkDirectRules(line, rules, ipAddress, logSource, db)
+        matchedRules = checkRules(line, rules, ipAddress, logSource, db)
         base64MatchedRules = checkBase64Rules(line, rules, ipAddress, logSource, db)
 
         if not matchedRules and not base64MatchedRules:
