@@ -15,8 +15,7 @@ scheduler = BackgroundScheduler()
 observer = Observer()
 changeHandler = ChangeHandler()
 
-# folder_id -> watch handle, and the sets of ids currently scheduled - all
-# kept in sync with the database by syncMonitoring()
+
 watchedFolders = {}
 scheduledLogSourceIds = set()
 scannedFolders = set()
@@ -35,7 +34,7 @@ async def lifespan(app: FastAPI):
     ws.manager.loop = asyncio.get_running_loop()
 
     observer.start()
-    syncMonitoring()  # watches + scans whatever's already active immediately
+    syncMonitoring()
 
     scheduler.add_job(syncMonitoring, "interval", seconds=30, id="sync_monitoring")
     scheduler.start()
@@ -51,7 +50,11 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://192.168.1.17:5173", "http://192.168.1.2:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://192.168.1.17:5173",
+        "http://192.168.1.2:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

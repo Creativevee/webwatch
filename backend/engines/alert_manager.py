@@ -45,7 +45,10 @@ def checkAbuseIpdb(ipAddress):
     params = {"ipAddress": ipAddress, "maxAgeInDays": 90}
 
     response = requests.get(
-        "https://api.abuseipdb.com/api/v2/check", headers=headers, params=params, timeout=10
+        "https://api.abuseipdb.com/api/v2/check",
+        headers=headers,
+        params=params,
+        timeout=10,
     )
     response.raise_for_status()
 
@@ -115,22 +118,6 @@ def alertOpenAi(message):
     )
 
     return response.choices[0].message.content
-
-
-def alertOllama(message):
-    payload = {
-        "model": settings.ollama_model,
-        "messages": [
-            {"role": "system", "content": ALERT_SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ],
-        "stream": False,
-    }
-
-    response = requests.post(f"{settings.ollama_host}/api/chat", json=payload, timeout=10)
-    response.raise_for_status()
-
-    return response.json()["message"]["content"]
 
 
 def alertFinding(
