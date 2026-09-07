@@ -1,10 +1,7 @@
 import subprocess
 import time
 
-TARGETS = {
-    "webwatch": "http://192.168.1.17",
-    "modsecurity": "http://192.168.1.17:8080",
-}
+TARGET = "http://192.168.1.17"
 
 HTTP_SCENARIOS = [
     {
@@ -92,6 +89,7 @@ HTTP_SCENARIOS = [
         "category": "attack",
         "mitre_technique": "T1190",
         "path": "/rest/user/login?email[$gt]=&password[$gt]=",
+        "extra_args": ["-g"],
     },
     {
         "name": "Normal: Browse Products",
@@ -125,7 +123,7 @@ HTTP_SCENARIOS = [
     },
 ]
 
-# Not HTTP-based, so not sent through either reverse proxy - run once, not per-target
+# Not HTTP-based, so not sent through the reverse proxy - run separately
 SPECIAL_SCENARIOS = [
     {
         "name": "SSH Brute Force",
@@ -142,30 +140,22 @@ SPECIAL_SCENARIOS = [
 ]
 
 
-def runHttpScenario(scenario, targetName, targetUrl):
+def runHttpScenario(scenario):
     extraArgs = scenario.get("extra_args", [])
-    url = f"{targetUrl}{scenario['path']}"
-    command = ["curl", "-s", "-g", "-o", "/dev/null", "-w", "%{http_code}"] + extraArgs + [url]
+    url = f"{TARGET}{scenario['path']}"
+    command = ["curl", "-s", "-o", "/dev/null"] + extraArgs + [url]
 
-    result = subprocess.run(command, capture_output=True, text=True)
-    statusCode = result.stdout.strip()
-    blocked = statusCode == "403"
-
-    label = " - BLOCKED" if blocked else ""
-    print(f"[{targetName}] {scenario['name']} ({scenario['category']}): HTTP {statusCode}{label}")
+    print(f"Running: {scenario['name']} ({scenario['category']})")
+    subprocess.run(command, capture_output=True)
 
 
-def runFuzzingScenario(targetName, targetUrl):
+def runFuzzingScenario():
     shellCommand = (
-        f"curl -s -g -o /dev/null -w '%{{http_code}}' "
-        f"\"{targetUrl}/rest/products/search?q=$(head -c 200 /dev/urandom | base64 | tr -d '\\n')\""
+        f"curl -s -o /dev/null "
+        f"\"{TARGET}/rest/products/search?q=$(head -c 200 /dev/urandom | base64 | tr -d '\\n')\""
     )
-    result = subprocess.run(["bash", "-c", shellCommand], capture_output=True, text=True)
-    statusCode = result.stdout.strip()
-    blocked = statusCode == "403"
-
-    label = " - BLOCKED" if blocked else ""
-    print(f"[{targetName}] Fuzzing Payload (attack): HTTP {statusCode}{label}")
+    print("Running: Fuzzing Payload (attack)")
+    subprocess.run(["bash", "-c", shellCommand], capture_output=True)
 
 
 def runSpecialScenario(scenario):
@@ -174,21 +164,19 @@ def runSpecialScenario(scenario):
 
 
 def runPlaybook():
-    for targetName, targetUrl in TARGETS.items():
-        print(f"\n=== Target: {targetName} ({targetUrl}) ===")
-        for scenario in HTTP_SCENARIOS:
-            runHttpScenario(scenario, targetName, targetUrl)
-            time.sleep(1)
-        runFuzzingScenario(targetName, targetUrl)
-        time.sleep(1)
+    for scenario in HTTP_SCENARIOS:
+        runHttpScenario(scenario)
+        time.sleep(2)
 
-    print("\n=== Special (non-HTTP) scenarios, run once ===")
+    runFuzzingScenario()
+    time.sleep(2)
+
     for scenario in SPECIAL_SCENARIOS:
         runSpecialScenario(scenario)
-        time.sleep(1)
+        time.sleep(2)
 
-    totalHttpRuns = (len(HTTP_SCENARIOS) + 1) * len(TARGETS)
-    print(f"\nPlaybook complete. {totalHttpRuns} HTTP requests + {len(SPECIAL_SCENARIOS)} special scenarios run.")
+    totalScenarios = len(HTTP_SCENARIOS) + 1 + len(SPECIAL_SCENARIOS)
+    print(f"\nPlaybook complete. {totalScenarios} scenarios run against {TARGET}.")
 
 
 if __name__ == "__main__":
